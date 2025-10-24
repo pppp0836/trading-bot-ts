@@ -24,8 +24,7 @@ export function recordCSV(fileName: string, row: any, header: string[]) {
 
     const exists = fs.existsSync(filePath);
 
-    const createCsvWriter = csvWriter.createObjectCsvWriter;
-    const writer = createCsvWriter({
+    const writer = csvWriter.createObjectCsvWriter({
         path: filePath,
         header: header.map(h => ({ id: h, title: h })),
         append: exists
