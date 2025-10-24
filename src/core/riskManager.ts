@@ -1,13 +1,14 @@
 export class RiskManager {
-    private lastOrderTs = 0;
-    private minInterval = 500; // ms
+    lastOrderTs = 0;
+    minInterval = 500; // ms
 
+    // 判断是否达到下单间隔
     rateLimitOk(): boolean {
-        const now = Date.now();
-        if (now - this.lastOrderTs >= this.minInterval) {
-            this.lastOrderTs = now;
-            return true;
-        }
-        return false;
+        return Date.now() - this.lastOrderTs > this.minInterval;
+    }
+
+    // 更新最近下单时间
+    updateLastOrder() {
+        this.lastOrderTs = Date.now();
     }
 }
