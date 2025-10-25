@@ -4,8 +4,8 @@ import axios from "axios";
 
 // ---------------- 配置 ----------------
 const LOG_DIR = path.join(__dirname, "../logs");
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "8026412204:AAFlnlJy7DlCCdRVx5gpOpJkbid6IAN5Tg";
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "833582769";
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "";
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
 
 // 确保日志目录存在
 if (!fs.existsSync(LOG_DIR)) {
@@ -74,3 +74,4 @@ export async function sendTelegram(msg: string) {
         logger.warn("Telegram 发送失败:", err);
     }
 }
+
