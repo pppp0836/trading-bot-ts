@@ -1,22 +1,13 @@
-// 模拟/实盘模式
-export const SIMULATE = true;
-export const SYMBOL = "BTCUSD";
-export const POLLING_INTERVAL = 1000;
-
-// 策略开关
-export const ENABLE_MARKET_MAKING = true;
-export const ENABLE_MOMENTUM = true;
-
-// CLOB API 配置
-export const CLOB_API_URL = "https://rpc.ankr.com/eth";
-export const WALLET_PRIVATE_KEY = process.env.PRIVATE_KEY || "";
-
-// WebSocket 行情订阅
-export const WS_MARKET_URL = "wss://api.polymarket.com/v1/clob/market-channel";
-
-// 订单管理参数
-export const ORDER_LIFETIME = 30_000;
-export const ORDER_RETRY_COUNT = 3;
-
-// 其他参数
-export const STRATEGY_EXEC_INTERVAL = 500;
+// src/config.ts
+export const SIMULATE_MODE = true;
+export const TRADE_RATIO = 0.1;
+export const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "";
+export const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
+export const LOG_DIR = "logs";
+export const DATA_DIR = "src/data"; // relative path used by recordCSV
+export const AUDIT_CSV = "trades_audit.csv"; // file will be created inside DATA_DIR
+export const COINBASE_WS_URL = "wss://ws-feed.exchange.coinbase.com";
+export const COINBASE_PRODUCT = "BTC-USD";
+export const POLY_EVENT_LIST_URL = "https://polymarket.com/crypto?tab=15M";
+export const POLY_EVENT_URL = "https://polymarket.com/event/btc-updown-15m-{}";
+export const POLY_CLOB_ORDERBOOK = "https://clob.polymarket.com/api/v5/markets";
