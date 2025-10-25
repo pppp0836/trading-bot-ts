@@ -2,6 +2,7 @@ import axios, { AxiosRequestConfig } from "axios";
 import fs from "fs";
 import path from "path";
 import { SocksProxyAgent } from "socks-proxy-agent";
+import puppeteer from "puppeteer";
 
 // -------------------- 代理配置 --------------------
 type ProxyConfig = {
@@ -61,18 +62,27 @@ export async function fetchCurrentBTC15MToken(): Promise<string | null> {
 }
 
 // -------------------- 获取基准价 --------------------
-export async function fetchBasePrice(tokenId: string): Promise<number | null> {
+export async function fetchBasePricePuppeteer(tokenId: string): Promise<number | null> {
+    const url = `https://polymarket.com/event/btc-updown-15m-${tokenId}`;
+    const browser = await puppeteer.launch({ headless: true });
     try {
-        const resp = await axios.get(`https://polymarket.com/event/btc-updown-15m-${tokenId}`, getAxiosConfig());
-        const html: string = resp.data;
-        const m = html.match(/price to beat.*?\$([\d,]+\.\d{2})/i);
-        if (m) return parseFloat(m[1].replace(/,/g, ""));
-        return null;
+        const page = await browser.newPage();
+        await page.goto(url, { waitUntil: "networkidle2" });
+
+        // 延迟显示的 price to beat 在页面上可能需要等 JS 渲染
+        await page.waitForSelector("text/price to beat", { timeout: 5000 }).catch(() => null);
+
+        const priceStr = await page.$eval("span[class*='PriceToBeat']", el => el.textContent?.replace("$", "").replace(",", ""));
+        const price = priceStr ? parseFloat(priceStr) : null;
+        return price;
     } catch (e) {
-        console.warn("fetchBasePrice failed", e);
+        console.warn("fetchBasePricePuppeteer failed", e);
         return null;
+    } finally {
+        await browser.close();
     }
 }
+
 
 // -------------------- 获取盘口 --------------------
 export async function fetchOrderbook(tokenId: string, limit = 5): Promise<{ bids: number[], asks: number[] }> {
