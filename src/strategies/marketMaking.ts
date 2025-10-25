@@ -1,4 +1,4 @@
-import { OrderSignal } from "../core/tradeManager";
+import type { OrderSignal } from "../core/tradeManager";
 
 export const marketMakingStrategy = {
     name: "MarketMaking",

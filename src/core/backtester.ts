@@ -1,7 +1,8 @@
-import { StrategyManager, Strategy } from './strategyManager';
+import { StrategyManager } from './strategyManager';
+import type { Strategy } from './strategyManager';
 import { AccountManager } from './accountManager';
 import { TradeManager } from './tradeManager';
-import { logInfo } from '../utils/logger';
+import { logger } from '../utils/logger';
 
 export interface HistoricalData {
     timestamp: number;
@@ -26,10 +27,10 @@ export class Backtester {
 
     async run(historicalData: HistoricalData[]) {
         for (const bar of historicalData) {
-            await this.strategyManager.execute(bar.midPrice, bar.bid, bar.ask);
+            await this.strategyManager.execute(bar.midPrice, bar.bid, bar.ask, async () => true);
             await this.tradeManager.update();
-            logInfo(`Time: ${bar.timestamp}, Equity: ${this.account.markToMarket(bar.midPrice)}`);
+            logger.info(`Time: ${bar.timestamp}, Equity: ${this.account.markToMarket(bar.midPrice)}`);
         }
-        logInfo(`回测结束，最终资金: ${this.account.markToMarket(historicalData[historicalData.length - 1].midPrice)}`);
+        logger.info(`回测结束，最终资金: ${this.account.markToMarket(historicalData[historicalData.length - 1].midPrice)}`);
     }
 }

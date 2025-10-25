@@ -25,7 +25,6 @@ function formatMessage(level: string, msg: string) {
     return `${timestamp} [${level}] ${msg}`;
 }
 
-// ---------------- Logger ----------------
 type LogArg = string | Error | any;
 
 function combineArgs(arg1: LogArg, arg2?: LogArg) {
@@ -38,30 +37,34 @@ function combineArgs(arg1: LogArg, arg2?: LogArg) {
     }
 }
 
+// ---------------- Logger ----------------
 export const logger = {
     info: (arg1: LogArg, arg2?: LogArg) => {
         const msg = combineArgs(arg1, arg2);
         const formatted = formatMessage("INFO", msg);
         console.log(formatted);
-        fs.appendFile(getLogFilePath(), formatted + "\n", (err) => {
-            if (err) console.error("写日志失败:", err);
-        });
+        fs.appendFile(getLogFilePath(), formatted + "\n", () => {});
     },
+
     warn: (arg1: LogArg, arg2?: LogArg) => {
         const msg = combineArgs(arg1, arg2);
         const formatted = formatMessage("WARN", msg);
         console.warn(formatted);
-        fs.appendFile(getLogFilePath(), formatted + "\n", (err) => {
-            if (err) console.error("写日志失败:", err);
-        });
+        fs.appendFile(getLogFilePath(), formatted + "\n", () => {});
     },
+
     error: (arg1: LogArg, arg2?: LogArg) => {
         const msg = combineArgs(arg1, arg2);
         const formatted = formatMessage("ERROR", msg);
         console.error(formatted);
-        fs.appendFile(getLogFilePath(), formatted + "\n", (err) => {
-            if (err) console.error("写日志失败:", err);
-        });
+        fs.appendFile(getLogFilePath(), formatted + "\n", () => {});
+    },
+
+    debug: (arg1: LogArg, arg2?: LogArg) => {
+        const msg = combineArgs(arg1, arg2);
+        const formatted = formatMessage("DEBUG", msg);
+        console.log(formatted);
+        fs.appendFile(getLogFilePath(), formatted + "\n", () => {});
     },
 };
 
@@ -77,15 +80,4 @@ export async function sendTelegram(msg: string) {
     } catch (err: any) {
         logger.warn("Telegram 发送失败:", err);
     }
-}
-
-// ---------------- Debug 辅助函数 ----------------
-export function debug(msg: string, data?: any) {
-    if (!DEBUG_MODE) return; // 仅当 DEBUG_MODE=true 时生效
-    const content = data ? `${msg} ${JSON.stringify(data)}` : msg;
-    const formatted = formatMessage("DEBUG", content);
-    console.log(formatted);
-    fs.appendFile(getLogFilePath(), formatted + "\n", (err) => {
-        if (err) console.error("写日志失败:", err);
-    });
 }

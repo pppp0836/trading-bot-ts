@@ -1,6 +1,7 @@
 import { logger, sendTelegram } from "../utils/logger";
 import { recordCSV } from "../utils/file";
 import axios from "axios";
+import { POLY_CLOB_ORDERBOOK } from "../config";
 
 export interface Position {
     tokenId: string;
@@ -12,6 +13,13 @@ export interface Position {
     status: "OPEN" | "CLOSED";
 }
 
+// OrderSignal used by strategies
+export type OrderSignal = {
+    side: "buy" | "sell";
+    price: number;
+    size: number;
+};
+
 export class TradeManager {
     public balanceUsd = 1000;
     public positions: Position[] = [];
@@ -21,7 +29,33 @@ export class TradeManager {
 
     private lastClaimedSlot: Date | null = null;
 
-    constructor() {}
+    constructor(account?: any, opts?: any) {
+        // accept optional constructor args for Backtester compatibility; no-op for now
+        void account;
+        void opts;
+    }
+
+    // expose snake_case aliases and last_claimed_slot for older code
+    public get current_token(): string | null {
+        return this.currentToken;
+    }
+    public set current_token(v: string | null) {
+        this.currentToken = v;
+    }
+
+    public get base_price(): number | null {
+        return this.basePrice;
+    }
+    public set base_price(v: number | null) {
+        this.basePrice = v;
+    }
+
+    public get last_claimed_slot(): Date | null {
+        return this.lastClaimedSlot;
+    }
+    public set last_claimed_slot(v: Date | null) {
+        this.lastClaimedSlot = v;
+    }
 
     // ---------------- 市价下单 ----------------
     public async placeMarketOrderSim(side: "UP" | "DOWN", stakeUsd: number) {
@@ -84,7 +118,7 @@ export class TradeManager {
                 this.balanceUsd += pos.stakeUsd;
                 note = "平局退本金";
             } else if (pos.side === winningSide) {
-                profit = pos.shares * 1.0 - pos.stakeUsd;
+                profit = pos.shares - pos.stakeUsd;
                 this.balanceUsd += pos.stakeUsd + profit;
                 note = `胜利 收益=${profit.toFixed(2)}`;
             } else {
@@ -141,4 +175,91 @@ export class TradeManager {
         slot.setUTCMinutes(minutes, 0, 0);
         return slot;
     }
+
+    // ---------------- Missing methods expected by main.ts ----------------
+    // Refresh current event (placeholder implementation). Should fetch/set
+    // this.currentToken and this.basePrice in real usage.
+    public async refresh_current_event(): Promise<boolean> {
+        try {
+            // Try to load markets from Polymarket CLOB API and pick a BTC 15m market
+            try {
+                const res = await axios.get(POLY_CLOB_ORDERBOOK, { timeout: 8000 });
+                const data = res.data;
+                if (Array.isArray(data) && data.length > 0) {
+                    // Heuristic: find market with 'btc' and '15' or '15m' in name/display
+                    const found = data.find((m: any) => {
+                        const s = ((m.name || m.displayName || m.market || "") + "").toLowerCase();
+                        return s.includes("btc") && (s.includes("15") || s.includes("15m") || s.includes("15-minute") || s.includes("updown"));
+                    }) || data[0];
+
+                    // use id or marketId if present
+                    const tokenId = found?.id ?? found?.marketId ?? found?.symbol ?? JSON.stringify(found);
+                    this.currentToken = String(tokenId);
+                    logger.info("refresh_current_event: selected market from CLOB:", this.currentToken);
+                }
+            } catch (err) {
+                // If CLOB fetch fails, fallback to slot id
+                logger.debug("POLY_CLOB_ORDERBOOK fetch failed, fallback to slot token:", (err as any)?.message ?? err);
+                if (!this.currentToken) {
+                    const slot = this.utcSlotStart(new Date());
+                    this.currentToken = `slot-${slot.toISOString()}`;
+                }
+            }
+
+            // set base price from market price if not set
+            if (!this.basePrice) {
+                const p = await this.getMarketPrice();
+                this.basePrice = p ?? this.basePrice ?? 0;
+            }
+            return true;
+        } catch (err) {
+            logger.warn("refresh_current_event 失败:", err);
+            return false;
+        }
+    }
+
+    // periodic_claim_and_rotate(last_claimed_slot) should perform claim/settle
+    // and rotate events. Return the updated last_claimed_slot (Date|null).
+    public async periodic_claim_and_rotate(last_claimed_slot: Date | null): Promise<Date | null> {
+        // Use existing rotateEvent helper which uses this.lastClaimedSlot internally.
+        await this.rotateEvent(async () => {
+            return this.refresh_current_event();
+        });
+        return this.lastClaimedSlot;
+    }
+
+    // fetch_orderbook(tokenId, depth) -> { bids: [], asks: [] }
+    public async fetch_orderbook(tokenId: string | null, depth = 5): Promise<{ bids: any[]; asks: any[] }> {
+        // Use Coinbase Pro public orderbook for BTC-USD as a reliable source for bid/ask data.
+        // tokenId is ignored for now (kept for compatibility with Polymarket market ids).
+        try {
+            const res = await axios.get('https://api.pro.coinbase.com/products/BTC-USD/book?level=2', { timeout: 5000 });
+            const data = res.data;
+            const bids = (data.bids || []).slice(0, depth).map((b: any) => ({ price: b[0], size: b[1] }));
+            const asks = (data.asks || []).slice(0, depth).map((a: any) => ({ price: a[0], size: a[1] }));
+            return { bids, asks };
+        } catch (err) {
+            logger.warn('fetch_orderbook failed, returning empty book:', (err as any)?.message ?? err);
+            return { bids: [], asks: [] };
+        }
+    }
+
+    // ---------------- Backtester compatibility helpers ----------------
+    // Called by Backtester in original code — keep a no-op update()
+    public async update(): Promise<void> {
+        // In a live bot this might poll orders / settle partial fills; for now, no-op
+        return Promise.resolve();
+    }
+
+    // Called by StrategyManager.marketMakingStrategy
+    public async trading_strategy_execute(): Promise<void> {
+        // placeholder: could aggregate strategy signals and place orders
+        logger.debug("trading_strategy_execute called (placeholder)");
+    }
+
+    // ---------------- 兼容旧式 API ----------------
+    public async periodic_claim_and_rotate_alias(last_claimed_slot: Date | null) {
+        return this.periodic_claim_and_rotate(last_claimed_slot);
+    }
+
 }
