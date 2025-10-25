@@ -62,7 +62,7 @@ export async function fetchCurrentBTC15MToken(): Promise<string | null> {
 }
 
 // -------------------- 获取基准价 --------------------
-export async function fetchBasePricePuppeteer(tokenId: string): Promise<number | null> {
+export async function fetchBasePrice(tokenId: string): Promise<number | null> {
     const url = `https://polymarket.com/event/btc-updown-15m-${tokenId}`;
     const browser = await puppeteer.launch({ headless: true });
     try {
@@ -76,7 +76,7 @@ export async function fetchBasePricePuppeteer(tokenId: string): Promise<number |
         const price = priceStr ? parseFloat(priceStr) : null;
         return price;
     } catch (e) {
-        console.warn("fetchBasePricePuppeteer failed", e);
+        console.warn("fetchBasePrice failed", e);
         return null;
     } finally {
         await browser.close();
