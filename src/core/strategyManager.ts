@@ -1,35 +1,54 @@
-// src/core/strategyManager.ts
-import { TradeManager, OrderSignal } from "./tradeManager";
+import { TradeManager } from "./tradeManager";
+import { logger } from "../utils/logger";
 
-/** 对象策略类型 */
-export type StrategyObject = {
-    name: string;
-    weight: number;
-    generateSignals: (mid: number, bid: number, ask: number) => OrderSignal[];
-};
-
-/** 多策略管理器 */
 export class StrategyManager {
-    private strategies: StrategyObject[] = [];
+    private tradeManager: TradeManager;
+    private strategies: ((midPrice: number) => Promise<void>)[] = [];
 
-    constructor(private tradeManager?: TradeManager) {}
-
-    /** 添加策略 */
-    addStrategy(strategy: StrategyObject) {
-        this.strategies.push(strategy);
+    constructor(tradeManager: TradeManager) {
+        this.tradeManager = tradeManager;
     }
 
-    /** 执行所有策略并下单 */
-    async execute(mid: number, bid: number, ask: number) {
-        for (const strat of this.strategies) {
+    public addStrategy(fn: (midPrice: number) => Promise<void>) {
+        this.strategies.push(fn);
+    }
+
+    public async execute(midPrice: number, refreshEventFn: () => Promise<boolean>) {
+        // 事件轮换 & Claim
+        await this.tradeManager.rotateEvent(refreshEventFn);
+
+        // 策略执行
+        for (const fn of this.strategies) {
             try {
-                const signals = strat.generateSignals(mid, bid, ask);
-                for (const signal of signals) {
-                    await this.tradeManager?.placeOrder(signal);
-                }
-            } catch (err) {
-                console.error(`[StrategyManager] Strategy ${strat.name} execution failed: ${(err as Error).message}`);
+                await fn(midPrice);
+            } catch (err: any) {
+                logger.warn(`策略执行失败: ${err.message}`);
             }
+        }
+    }
+
+    public async marketMakingStrategy(midPrice: number) {
+        if (!this.tradeManager.currentToken || !this.tradeManager.basePrice) return;
+
+        const price = midPrice;
+        const diff = price - this.tradeManager.basePrice;
+        const absDiff = Math.abs(diff);
+
+        const thresholds: { [key: number]: number } = {300:500,180:300,120:150,60:120,30:100,10:70,5:50,3:40,1:20};
+        const secondsLeft = 60; // 可以改为事件剩余秒数
+        const bucket = Object.keys(thresholds).map(Number).reduce((prev, curr) =>
+                Math.abs(curr - secondsLeft) < Math.abs(prev - secondsLeft) ? curr : prev
+            , 120);
+        let threshold = thresholds[bucket] ?? 100;
+
+        if (absDiff >= 500) threshold = Math.min(threshold, 200);
+
+        const side = diff > 0 ? "UP" : "DOWN";
+        this.tradeManager.side = side;
+
+        const stakeUsd = Math.max(1, this.tradeManager.balanceUsd * 0.1);
+        if (absDiff >= threshold) {
+            await this.tradeManager.placeMarketOrderSim(side, stakeUsd);
         }
     }
 }
