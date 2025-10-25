@@ -6,6 +6,7 @@ import axios from "axios";
 const LOG_DIR = path.join(__dirname, "../logs");
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "";
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
+const DEBUG_MODE = process.env.DEBUG_MODE === "true"; // 控制 debug 输出
 
 // 确保日志目录存在
 if (!fs.existsSync(LOG_DIR)) {
@@ -29,7 +30,9 @@ type LogArg = string | Error | any;
 
 function combineArgs(arg1: LogArg, arg2?: LogArg) {
     if (arg2 !== undefined) {
-        return `${arg1} ${arg2 instanceof Error ? arg2.stack || arg2.message : JSON.stringify(arg2)}`;
+        return `${arg1} ${
+            arg2 instanceof Error ? arg2.stack || arg2.message : JSON.stringify(arg2)
+        }`;
     } else {
         return arg1 instanceof Error ? arg1.stack || arg1.message : JSON.stringify(arg1);
     }
@@ -66,12 +69,23 @@ export const logger = {
 export async function sendTelegram(msg: string) {
     if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) return;
     try {
-        await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            chat_id: TELEGRAM_CHAT_ID,
-            text: msg,
-        }, { timeout: 8000 });
+        await axios.post(
+            `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
+            { chat_id: TELEGRAM_CHAT_ID, text: msg },
+            { timeout: 8000 }
+        );
     } catch (err: any) {
         logger.warn("Telegram 发送失败:", err);
     }
 }
 
+// ---------------- Debug 辅助函数 ----------------
+export function debug(msg: string, data?: any) {
+    if (!DEBUG_MODE) return; // 仅当 DEBUG_MODE=true 时生效
+    const content = data ? `${msg} ${JSON.stringify(data)}` : msg;
+    const formatted = formatMessage("DEBUG", content);
+    console.log(formatted);
+    fs.appendFile(getLogFilePath(), formatted + "\n", (err) => {
+        if (err) console.error("写日志失败:", err);
+    });
+}
